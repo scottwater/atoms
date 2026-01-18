@@ -855,19 +855,13 @@ func TestOnboardCommand(t *testing.T) {
 	output := buf.String()
 
 	// Verify key content is present
-	if !strings.Contains(output, "--- BEGIN ATOM.MD CONTENT ---") {
-		t.Error("expected BEGIN marker in onboard output")
-	}
-	if !strings.Contains(output, "--- END ATOM.MD CONTENT ---") {
-		t.Error("expected END marker in onboard output")
-	}
-	if !strings.Contains(output, "## Task Tracking") {
+	if !strings.Contains(output, "# Task Tracking") {
 		t.Error("expected Task Tracking header")
 	}
 	if !strings.Contains(output, "`atom ready`") {
 		t.Error("expected atom ready command reference")
 	}
-	if !strings.Contains(output, "**Workflow:**") {
+	if !strings.Contains(output, "## Workflow") {
 		t.Error("expected Workflow section")
 	}
 	if !strings.Contains(output, ".atoms.jsonl") {

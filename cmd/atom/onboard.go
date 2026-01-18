@@ -18,25 +18,28 @@ func init() {
 }
 
 func runOnboard(cmd *cobra.Command, args []string) {
-	fmt.Println(`
-Add this to ATOM.md (or create it):
+	fmt.Println(`Add this to AGENTS.md or ATOM.md:
 
---- BEGIN ATOM.MD CONTENT ---
-## Task Tracking
+# Task Tracking
 
-This project uses **atom** for task tracking.
+This project uses **atom** for lightweight task tracking.
 
-**Quick reference:**
-- ` + "`atom ready`" + ` - Find available work
-- ` + "`atom create \"Title\" --type feature --priority 2`" + ` - Create task
-- ` + "`atom close <id>`" + ` - Complete work
-- ` + "`atom list`" + ` - See all tasks
+Run ` + "`atom ready`" + ` to see available work, or ` + "`atom help`" + ` for all commands.
 
-**Workflow:**
-1. Run ` + "`atom ready`" + ` to find work
-2. Update status: ` + "`atom update <id> --status in_progress`" + `
+## Quick Reference
+
+` + "```bash" + `
+atom ready              # Find available work
+atom show <id>          # View task details  
+atom update <id> --status in_progress  # Claim work
+atom close <id>         # Complete work
+` + "```" + `
+
+## Workflow
+
+1. Check for ready work: ` + "`atom ready`" + `
+2. Claim your task: ` + "`atom update <id> --status in_progress`" + `
 3. Do the work
-4. Close: ` + "`atom close <id>`" + `
-5. Commit ` + "`.atoms.jsonl`" + ` with your changes
---- END ATOM.MD CONTENT ---`)
+4. Complete: ` + "`atom close <id>`" + `
+5. Commit: ` + "`git add .atoms.jsonl && git commit`" + ``)
 }

@@ -12,6 +12,7 @@ import (
 
 var initPrefix string
 var initQuiet bool
+var initStealth bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -23,6 +24,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVar(&initPrefix, "prefix", "atom", "Custom ID prefix")
 	initCmd.Flags().BoolVar(&initQuiet, "quiet", false, "Suppress output")
+	initCmd.Flags().BoolVar(&initStealth, "stealth", false, "Exclude .atoms.jsonl from git (local only)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -50,6 +52,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to configure git merge driver: %w", err)
 	}
 
+	// Stealth mode: add to .git/info/exclude
+	if initStealth {
+		if err := addToGitExclude(dir); err != nil {
+			return fmt.Errorf("failed to configure git exclude: %w", err)
+		}
+	}
+
 	// Create ATOM.md if it doesn't exist
 	if err := createAtomMD(dir); err != nil {
 		return fmt.Errorf("failed to create ATOM.md: %w", err)
@@ -60,6 +69,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("  Storage: .atoms.jsonl")
 		fmt.Printf("  Task prefix: %s\n", initPrefix)
+		if initStealth {
+			fmt.Println("  Mode: stealth (excluded from git)")
+		}
 		fmt.Println()
 		fmt.Println("Run 'atom onboard' to see ATOM.md content for AI agents.")
 	}
@@ -104,6 +116,44 @@ func containsSubstring(s, substr string) bool {
 	return false
 }
 
+func addToGitExclude(dir string) error {
+	gitDir := exec.Command("git", "rev-parse", "--git-dir")
+	gitDir.Dir = dir
+	output, err := gitDir.Output()
+	if err != nil {
+		return nil // Not a git repo, skip
+	}
+
+	gitPath := string(output)
+	gitPath = gitPath[:len(gitPath)-1] // Remove trailing newline
+	excludePath := filepath.Join(gitPath, "info", "exclude")
+
+	entry := ".atoms.jsonl"
+
+	// Check if already excluded
+	if data, err := os.ReadFile(excludePath); err == nil {
+		if contains(string(data), entry) {
+			return nil
+		}
+	}
+
+	// Ensure info directory exists
+	infoDir := filepath.Join(gitPath, "info")
+	if err := os.MkdirAll(infoDir, 0755); err != nil {
+		return err
+	}
+
+	// Append to exclude file
+	f, err := os.OpenFile(excludePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(entry + "\n")
+	return err
+}
+
 func configureGitMergeDriver() error {
 	// Check if we're in a git repository
 	if err := exec.Command("git", "rev-parse", "--git-dir").Run(); err != nil {
@@ -145,12 +195,13 @@ atom update <id> --status in_progress  # Claim work
 atom close <id>         # Complete work
 ` + "```" + `
 
-## Session Completion
+## Workflow
 
-When ending work:
-1. Close completed tasks: ` + "`atom close <id>`" + `
-2. Commit changes: ` + "`git add .atoms.jsonl && git commit`" + `
-3. Push to remote: ` + "`git push`" + `
+1. Check for ready work: ` + "`atom ready`" + `
+2. Claim your task: ` + "`atom update <id> --status in_progress`" + `
+3. Do the work
+4. Complete: ` + "`atom close <id>`" + `
+5. Commit: ` + "`git add .atoms.jsonl && git commit`" + `
 `
 
 	return os.WriteFile(path, []byte(content), 0644)
