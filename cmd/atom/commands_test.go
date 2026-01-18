@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/scottwater/atoms/internal/merge"
 	"github.com/scottwater/atoms/internal/storage"
 	"github.com/scottwater/atoms/internal/task"
 )
@@ -725,5 +727,74 @@ func TestReadyEmpty(t *testing.T) {
 
 	if !strings.Contains(output, "No tasks ready") {
 		t.Errorf("expected 'No tasks ready' message, got '%s'", output)
+	}
+}
+
+func TestMergeCommand(t *testing.T) {
+	dir := setupTestDir(t)
+
+	base := time.Date(2025, 1, 18, 10, 0, 0, 0, time.UTC)
+	oursTime := base.Add(time.Hour)
+	theirsTime := base.Add(2 * time.Hour)
+
+	// Create ancestor file
+	ancestorPath := filepath.Join(dir, "ancestor.jsonl")
+	ancestorStore := storage.NewWithPath(ancestorPath)
+	ancestorStore.Create()
+	ancestorStore.Append(&task.Task{
+		ID: "atom-001", Title: "Original", Type: task.TypeFeature,
+		Priority: 2, Status: task.StatusOpen, CreatedAt: base, UpdatedAt: base,
+	})
+
+	// Create ours file
+	oursPath := filepath.Join(dir, "ours.jsonl")
+	oursStore := storage.NewWithPath(oursPath)
+	oursStore.Create()
+	oursStore.Append(&task.Task{
+		ID: "atom-001", Title: "Our Title", Type: task.TypeFeature,
+		Priority: 2, Status: task.StatusOpen, CreatedAt: base, UpdatedAt: oursTime,
+	})
+	oursStore.Append(&task.Task{
+		ID: "atom-002", Title: "New in ours", Type: task.TypeBug,
+		Priority: 1, Status: task.StatusOpen, CreatedAt: oursTime, UpdatedAt: oursTime,
+	})
+
+	// Create theirs file
+	theirsPath := filepath.Join(dir, "theirs.jsonl")
+	theirsStore := storage.NewWithPath(theirsPath)
+	theirsStore.Create()
+	theirsStore.Append(&task.Task{
+		ID: "atom-001", Title: "Their Title", Type: task.TypeFeature,
+		Priority: 2, Status: task.StatusOpen, CreatedAt: base, UpdatedAt: theirsTime,
+	})
+	theirsStore.Append(&task.Task{
+		ID: "atom-003", Title: "New in theirs", Type: task.TypeFeature,
+		Priority: 3, Status: task.StatusOpen, CreatedAt: theirsTime, UpdatedAt: theirsTime,
+	})
+
+	// Run merge (note: runMerge calls os.Exit, so we test via the merge package directly)
+	ancestor, _ := ancestorStore.ReadAll()
+	ours, _ := oursStore.ReadAll()
+	theirs, _ := theirsStore.ReadAll()
+
+	merged := merge.Merge3Way(ancestor, ours, theirs)
+
+	if len(merged) != 3 {
+		t.Fatalf("expected 3 tasks after merge, got %d", len(merged))
+	}
+
+	// Find the original task and verify their title won (later timestamp)
+	var originalTask *task.Task
+	for _, tt := range merged {
+		if tt.ID == "atom-001" {
+			originalTask = tt
+			break
+		}
+	}
+	if originalTask == nil {
+		t.Fatal("atom-001 not found in merged result")
+	}
+	if originalTask.Title != "Their Title" {
+		t.Errorf("expected 'Their Title', got '%s'", originalTask.Title)
 	}
 }
