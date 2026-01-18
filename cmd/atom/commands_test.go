@@ -443,3 +443,287 @@ func TestShowNotFound(t *testing.T) {
 		t.Error("expected task not found error")
 	}
 }
+
+func TestUpdateTask(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	// Create a task
+	store := storage.New(dir)
+	original := &task.Task{
+		ID:          "atom-0001",
+		Title:       "Original",
+		Type:        task.TypeFeature,
+		Priority:    2,
+		Status:      task.StatusOpen,
+		Description: "Original desc",
+	}
+	store.Append(original)
+
+	// Test update status
+	updateStatus = "in_progress"
+	updatePriority = 0
+	updateDescription = ""
+	updateTitle = ""
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := runUpdate(updateCmd, []string{"atom-0001"})
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	var result map[string]string
+	json.Unmarshal(buf.Bytes(), &result)
+	if result["status"] != "in_progress" {
+		t.Errorf("expected status 'in_progress', got '%s'", result["status"])
+	}
+
+	// Verify in storage
+	updated, _ := store.FindByID("atom-0001")
+	if updated.Status != task.StatusInProgress {
+		t.Errorf("expected status in_progress in storage, got %s", updated.Status)
+	}
+
+	// Test update priority
+	updateStatus = ""
+	updatePriority = 1
+	r, w, _ = os.Pipe()
+	os.Stdout = w
+	runUpdate(updateCmd, []string{"atom-0001"})
+	w.Close()
+	os.Stdout = oldStdout
+
+	updated, _ = store.FindByID("atom-0001")
+	if updated.Priority != 1 {
+		t.Errorf("expected priority 1, got %d", updated.Priority)
+	}
+
+	// Test update title
+	updatePriority = 0
+	updateTitle = "New Title"
+	r, w, _ = os.Pipe()
+	os.Stdout = w
+	runUpdate(updateCmd, []string{"atom-0001"})
+	w.Close()
+	os.Stdout = oldStdout
+
+	updated, _ = store.FindByID("atom-0001")
+	if updated.Title != "New Title" {
+		t.Errorf("expected title 'New Title', got '%s'", updated.Title)
+	}
+}
+
+func TestUpdateValidation(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	store := storage.New(dir)
+	store.Append(&task.Task{ID: "atom-0001", Title: "Test", Type: task.TypeFeature, Priority: 2, Status: task.StatusOpen})
+
+	// Test invalid status
+	updateStatus = "invalid"
+	updatePriority = 0
+	updateDescription = ""
+	updateTitle = ""
+
+	err := runUpdate(updateCmd, []string{"atom-0001"})
+	if err == nil || !strings.Contains(err.Error(), "invalid status") {
+		t.Error("expected invalid status error")
+	}
+
+	// Test invalid priority
+	updateStatus = ""
+	updatePriority = 5
+
+	err = runUpdate(updateCmd, []string{"atom-0001"})
+	if err == nil || !strings.Contains(err.Error(), "invalid priority") {
+		t.Error("expected invalid priority error")
+	}
+
+	// Test no updates
+	updatePriority = 0
+	err = runUpdate(updateCmd, []string{"atom-0001"})
+	if err == nil || !strings.Contains(err.Error(), "no updates specified") {
+		t.Error("expected no updates error")
+	}
+
+	// Test task not found
+	updateStatus = "open"
+	err = runUpdate(updateCmd, []string{"atom-nonexistent"})
+	if err == nil || !strings.Contains(err.Error(), "task not found") {
+		t.Error("expected task not found error")
+	}
+}
+
+func TestCloseTask(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	store := storage.New(dir)
+	store.Append(&task.Task{ID: "atom-0001", Title: "Test Task", Type: task.TypeFeature, Priority: 2, Status: task.StatusOpen})
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := runClose(closeCmd, []string{"atom-0001"})
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "Closed atom-0001") {
+		t.Errorf("expected close confirmation, got '%s'", output)
+	}
+
+	// Verify in storage
+	closed, _ := store.FindByID("atom-0001")
+	if closed.Status != task.StatusClosed {
+		t.Errorf("expected status closed, got %s", closed.Status)
+	}
+}
+
+func TestCloseNotFound(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	err := runClose(closeCmd, []string{"atom-nonexistent"})
+	if err == nil || !strings.Contains(err.Error(), "task not found") {
+		t.Error("expected task not found error")
+	}
+}
+
+func TestReadyTasks(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	store := storage.New(dir)
+	tasks := []*task.Task{
+		{ID: "atom-0001", Title: "Open task", Type: task.TypeFeature, Priority: 1, Status: task.StatusOpen},
+		{ID: "atom-0002", Title: "In progress", Type: task.TypeFeature, Priority: 2, Status: task.StatusInProgress},
+		{ID: "atom-0003", Title: "Blocked", Type: task.TypeBug, Priority: 1, Status: task.StatusBlocked},
+		{ID: "atom-0004", Title: "Closed", Type: task.TypeFeature, Priority: 3, Status: task.StatusClosed},
+		{ID: "atom-0005", Title: "Another open", Type: task.TypeBug, Priority: 2, Status: task.StatusOpen},
+	}
+	for _, tt := range tasks {
+		store.Append(tt)
+	}
+
+	readyJSON = true
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := runReady(readyCmd, []string{})
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("ready failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	var result []*task.Task
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("failed to parse JSON: %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Errorf("expected 2 ready tasks, got %d", len(result))
+	}
+
+	// Verify only open tasks are returned
+	for _, rt := range result {
+		if rt.Status != task.StatusOpen {
+			t.Errorf("expected only open tasks, got %s with status %s", rt.ID, rt.Status)
+		}
+	}
+}
+
+func TestReadyEmpty(t *testing.T) {
+	dir := setupTestDir(t)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	initPrefix = "atom"
+	initQuiet = true
+	runInit(initCmd, []string{})
+
+	// Create only non-open tasks
+	store := storage.New(dir)
+	store.Append(&task.Task{ID: "atom-0001", Title: "In progress", Type: task.TypeFeature, Priority: 1, Status: task.StatusInProgress})
+	store.Append(&task.Task{ID: "atom-0002", Title: "Closed", Type: task.TypeFeature, Priority: 2, Status: task.StatusClosed})
+
+	readyJSON = false
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := runReady(readyCmd, []string{})
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("ready failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "No tasks ready") {
+		t.Errorf("expected 'No tasks ready' message, got '%s'", output)
+	}
+}
