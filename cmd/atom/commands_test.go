@@ -798,3 +798,79 @@ func TestMergeCommand(t *testing.T) {
 		t.Errorf("expected 'Their Title', got '%s'", originalTask.Title)
 	}
 }
+
+func TestHelpCommand(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	runHelp(helpCmd, []string{})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Verify key sections are present
+	if !strings.Contains(output, "atoms - Minimal git-backed task tracker") {
+		t.Error("expected header in help output")
+	}
+	if !strings.Contains(output, "SETUP COMMANDS:") {
+		t.Error("expected SETUP COMMANDS section")
+	}
+	if !strings.Contains(output, "TASK COMMANDS:") {
+		t.Error("expected TASK COMMANDS section")
+	}
+	if !strings.Contains(output, "EXAMPLES:") {
+		t.Error("expected EXAMPLES section")
+	}
+	if !strings.Contains(output, "WORKFLOW:") {
+		t.Error("expected WORKFLOW section")
+	}
+	if !strings.Contains(output, "atom init") {
+		t.Error("expected init command in help")
+	}
+	if !strings.Contains(output, "atom create") {
+		t.Error("expected create command in help")
+	}
+	if !strings.Contains(output, "atom ready") {
+		t.Error("expected ready command in help")
+	}
+}
+
+func TestOnboardCommand(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	runOnboard(onboardCmd, []string{})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Verify key content is present
+	if !strings.Contains(output, "--- BEGIN ATOM.MD CONTENT ---") {
+		t.Error("expected BEGIN marker in onboard output")
+	}
+	if !strings.Contains(output, "--- END ATOM.MD CONTENT ---") {
+		t.Error("expected END marker in onboard output")
+	}
+	if !strings.Contains(output, "## Task Tracking") {
+		t.Error("expected Task Tracking header")
+	}
+	if !strings.Contains(output, "`atom ready`") {
+		t.Error("expected atom ready command reference")
+	}
+	if !strings.Contains(output, "**Workflow:**") {
+		t.Error("expected Workflow section")
+	}
+	if !strings.Contains(output, ".atoms.jsonl") {
+		t.Error("expected .atoms.jsonl reference")
+	}
+}
