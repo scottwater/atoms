@@ -14,15 +14,13 @@ Atoms is a stripped-down version of [beads](https://github.com/steveyegge/beads)
 ## Installation
 
 ```bash
-go install github.com/scottwater/atoms/cmd/atom@latest
+curl -sSL https://raw.githubusercontent.com/scottwater/atoms/main/install.sh | bash
 ```
 
-Or build from source:
+Or with Go:
 
 ```bash
-git clone https://github.com/scottwater/atoms
-cd atoms
-go build -o atom ./cmd/atom
+go install github.com/scottwater/atoms/cmd/atom@latest
 ```
 
 ## Quick Start
