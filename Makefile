@@ -2,15 +2,17 @@
 
 BINARY_NAME=atom
 BUILD_DIR=./cmd/atom
+OUT_DIR=bin
 
 build:
-	go build -o $(BINARY_NAME) $(BUILD_DIR)
+	@mkdir -p $(OUT_DIR)
+	go build -o $(OUT_DIR)/$(BINARY_NAME) $(BUILD_DIR)
 
 test:
 	go test ./... -v
 
 clean:
-	rm -f $(BINARY_NAME)
+	rm -rf $(OUT_DIR)
 	go clean
 
 install: build
